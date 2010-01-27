@@ -38,6 +38,7 @@ if(shortener_acct) {
   shortener_login = OptionsBackend.get('shortener_login');
   shortener_key = OptionsBackend.get('shortener_key');
 }
+var reply_all = OptionsBackend.get('reply_all');
 var shortener = new Shortener(OptionsBackend.get('url_shortener'),
   shortener_acct, shortener_login, shortener_key);
 
@@ -117,6 +118,7 @@ var ThemeManager = {
 
 var Composer = {
   replyId: null,
+  replyUser: null,
   rtId: null,
   destroyId: null,
   favoriteId: null,
@@ -124,6 +126,7 @@ var Composer = {
   init: function() {
     if(tweetManager.composerData.isComposing) {
       Composer.replyId = tweetManager.composerData.replyId;
+      Composer.replyUser = tweetManager.composerData.replyUser;
       $("#compose_tweet_area textarea").val(tweetManager.composerData.saveMessage || '');
       Composer.showComposeArea(true, true);
     }
@@ -224,16 +227,46 @@ var Composer = {
     }, this.favoriteId);
   },
 
+  addUser: function (user, replies) {
+    var textArea = $("#compose_tweet_area textarea");
+    var currentVal = textArea.val();
+    var replies =  replies || [];
+    if(currentVal.length > 0 && currentVal[currentVal.length - 1] != ' ') {
+      currentVal += ' ';
+    }
+    currentVal += '@' + user + ' ' + replies.join('');
+    textArea.val(currentVal);
+  },
+
   reply: function (node) {
     Composer.showComposeArea(true);
-    var el = $("#compose_tweet_area textarea");
-    var user = $(".user", node).attr('screen_name');
-    if(tweetManager.currentTimeline == "dms") {
-      el.val("d " + user + " ");
-    } else {
-      el.val("@" + user + " ");
+
+    var textArea = $("#compose_tweet_area textarea");
+    var currentVal = textArea.val();
+    var user = $(".user", node).attr('screen_name');    
+    var replies = [];
+    var ownName = tweetManager.twitterBackend.username();
+    if (reply_all) {
+      $(".text a", node).each(function(){
+        var t = $(this).text();
+        if (t !== ownName && /^[A-Z0-9_-]{1,15}$/ig.test(t)) {
+          replies.push('@'+t+' ');
+        }
+      });
     }
-    tweetManager.composerData.replyId = Composer.replyId = $(node).attr('tweetid');
+
+    if(Composer.replyId && currentVal.indexOf(Composer.replyUser) != -1) {
+      this.addUser(user, replies);
+      return;
+    } else {
+      if(tweetManager.currentTimeline == "dms") {
+        textArea.val("d " + user + " ");
+      } else {
+        this.addUser(user, replies);
+      }
+      tweetManager.composerData.replyId = Composer.replyId = $(node).attr('tweetid');
+      tweetManager.composerData.replyUser = Composer.replyUser = user;
+    }
     Composer.textareaChanged();
   },
 
@@ -254,6 +287,7 @@ var Composer = {
       $("#compose_tweet img").attr('src', 'img/arrow_up.gif');
       tweetManager.composerData.isComposing = true;
       tweetManager.composerData.replyId = Composer.replyId;
+      tweetManager.composerData.replyUser = Composer.replyUser;
     } else if(!showOnly) {
       if(noAnimation) {
         composeArea.hide();
@@ -264,6 +298,7 @@ var Composer = {
       tweetManager.composerData.saveMessage = '';
       tweetManager.composerData.isComposing = false;
       tweetManager.composerData.replyId = null;
+      tweetManager.composerData.replyUser = null;
       Shortener.closeArea();
     }
 
@@ -324,7 +359,7 @@ var Composer = {
 }
 
 var Shortener = {
-  SHORTENER_IDLE_STR: chrome.i18n.getMessage("shortenerIdleString"),
+  SHORTENER_IDLE_STR: 'Type a URL to make it shorter, or, click right here \u2192',
 
   init: function() {
     var savedUrl = tweetManager.composerData.urlShortener;
@@ -471,17 +506,17 @@ var Renderer = {
       {
         //create links
         'expression': /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig,
-        'replacement': "<a href='$1' onclick=\"openTab('$1')\">$1</a>"
+        'replacement': "<a href='javascript:' onclick=\"javascript:openTab('$1')\">$1</a>"
       },
       {
         //create hash search links
-        'expression': /(#(\w*))((?=.*?<a)|(?!.*?<\/a>))/ig,
-        'replacement': "<a href='" + TwitterLib.URLS.SEARCH + "%23$2' onclick=\"openTab('" + TwitterLib.URLS.SEARCH + "%23$2')\">$1</a>"
+        'expression': /(#(\w*))((?=([^<])*?<a)|(?!.*?<\/a>))/ig,
+        'replacement': "<a href='javascript:' onclick=\"javascript:openTab('" + TwitterLib.URLS.SEARCH + "%23$2')\">$1</a>"
       },
       {
         //create users links
-        'expression': /(@(\w*))((?=.*?<a)|(?!.*?<\/a>))/ig,
-        'replacement': "@<a href='" + TwitterLib.URLS.BASE + "$2' onclick=\"openTab('" + TwitterLib.URLS.BASE + "$2')\">$2</a>"
+        'expression': /(@(\w*))((?=([^<])*?<a)|(?!.*?<\/a>))/ig,
+        'replacement': "@<a href='javascript:' onclick=\"javascript:openTab('" + TwitterLib.URLS.BASE + "$2')\">$2</a>"
       },
       {
         //line breaks
@@ -515,13 +550,13 @@ var Renderer = {
 
     var from = null;
     if(tweet.source) {
-      from = tweet.source.replace(/(href=(['"])(.*?)\2)/i, "$1 onclick=\"openTab('$3')\"");
+      from = tweet.source.replace(/(href=(['"])(.*?)\2)/i, "href='#' onclick=\"openTab('$3')\"");
     }
 
     var inReply = null;
     if(tweet.in_reply_to_status_id) {
       var linkDst = TwitterLib.URLS.BASE + tweet.in_reply_to_screen_name + '/status/' + tweet.in_reply_to_status_id;
-      inReply = '<a href="' + linkDst + '" onclick="openTab(\'' + linkDst + '\')">in reply to ' + tweet.in_reply_to_screen_name + '</a> ';
+      inReply = '<a href="#" onclick="openTab(\'' + linkDst + '\')">in reply to ' + tweet.in_reply_to_screen_name + '</a> ';
     }
 
     var nameAttribute = OptionsBackend.get('name_attribute');
@@ -540,8 +575,8 @@ var Renderer = {
 
     var str = '<div tweetid="' + tweet.id + '" class="' + tweetClass + '">';
     str += '<div class="first_container">';
-    str += '<img class="profile" src="' + user.profile_image_url + '" onclick="openTab(\'' + TwitterLib.URLS.BASE + user.screen_name + '\')"></img>';
-    str += '<a href="#" class="user" screen_name="' + user.screen_name + '" onclick="openTab(\'' + TwitterLib.URLS.BASE + user.screen_name + '\')" title="' + tweetTitleUserName + '">' + tweetUserName + '</a>';
+    str += '<img class="profile" src="' + user.profile_image_url + '" onclick="Renderer.handleUserClick(\'' + user.screen_name + '\', \'' + TwitterLib.URLS.BASE + user.screen_name + '\')"></img>';
+    str += '<a href="#" class="user" screen_name="' + user.screen_name + '" onclick="Renderer.handleUserClick(\'' + user.screen_name + '\', \'' + TwitterLib.URLS.BASE + user.screen_name + '\')" title="' + tweetTitleUserName + '">' + tweetUserName + '</a>';
 
     str += '<div class="text">';
     if(tweet.retweeted_status) {
@@ -551,17 +586,17 @@ var Renderer = {
 
     str += '<div class="footer">';
     var statusLinkDst = TwitterLib.URLS.BASE + user.screen_name + '/status/' + tweetId;
-    str += '<a href="' + statusLinkDst + '" onclick="openTab(\'' + statusLinkDst + '\')"><span class="timestamp" title="' + Renderer.getTimestampAltText(tweet.created_at) + '">' + Renderer.getTimestampText(tweet.created_at) + '</span></a> ';
+    str += '<a href="#" onclick="openTab(\'' + statusLinkDst + '\')"><span class="timestamp" title="' + Renderer.getTimestampAltText(tweet.created_at) + '">' + Renderer.getTimestampText(tweet.created_at) + '</span></a> ';
     if(inReply) {
       str += inReply;
     } else if(tweet.retweeted_status) {
-      str += 'retweeted by <a href="' + TwitterLib.URLS.BASE + tweet.user.screen_name + '" onclick="openTab(\'' + TwitterLib.URLS.BASE + tweet.user.screen_name + '\');">' + tweet.user.screen_name + '</a> ';
+      str += 'retweeted by <a href="#" onclick="openTab(\'' + TwitterLib.URLS.BASE + tweet.user.screen_name + '\');">' + tweet.user.screen_name + '</a> ';
     }
     if(tweetManager.isRetweet(tweet.id)) {
       str += 'retweeted by me ';
     }
     if(from) {
-      str += 'from ' + from;
+      str += '<span class="from_app">from ' + from + '</span>';
     }
     str += '</div></div>';
 
@@ -594,6 +629,19 @@ var Renderer = {
 
     str += '</div>'
     return str;
+  },
+
+  handleUserClick: function (user, url) {
+    // We're gonna do different stuff depending on Composer area status
+    var composeArea = $("#compose_tweet_area");
+    var visible = composeArea.is(':visible');
+    var button = event.button;
+    if(!visible || button == 1 || event.ctrlKey) {
+      // Composer not visible or Middle click or Ctrl click: Bailing out.
+      openTab(url);
+      return;
+    }
+    Composer.addUser(user);
   },
 
   assemblyTweets: function (tweets, timelineId) {
@@ -770,6 +818,10 @@ function openTab(tabUrl) {
 var loadingNewTweets = false;
 
 function onTimelineRetrieved(tweets, timelineId) {
+  if(!window) {
+    //Sanity check, popup might be closed.
+    return;
+  }
   $("#loading").hide();
   if(tweets) {
     Paginator.needsMore = false;
@@ -802,6 +854,10 @@ function signout() {
 }
 
 function newTweetsAvailable(count, unreadCount, timelineId) {
+  if(!window) {
+    //Sanity check, popup might be closed.
+    return;
+  }
   var currentTimeline = tweetManager.currentTimeline;
   if(timelineId != currentTimeline) {
     if(unreadCount == 0) {
@@ -858,6 +914,12 @@ function prepareAndLoadTimeline() {
 }
 
 function initializeWorkspace() {
+  $(window).unload(function() {
+    if(tweetManager) {
+      tweetManager.registerWarningsCallback(null);
+      tweetManager.registerNewTweetsCallback(null);
+    }
+  });
   tweetManager.registerNewTweetsCallback(newTweetsAvailable);
   $("#workspace").show();
   ThemeManager.init();
@@ -885,13 +947,13 @@ function initializeWorkspace() {
     }
     var name = '';
     if(timelineId == 'home') {
-      name = chrome.i18n.getMessage("timelineHome");
+      name = 'Home';
     } else if(timelineId == 'mentions') {
       name = '@<span class="__username">';
     } else if(timelineId == 'dms') {
-      name = chrome.i18n.getMessage("timelineDM");
+      name = 'DM';
     } else if(timelineId == 'favorites') {
-      name = chrome.i18n.getMessage("timelineFavorites");
+      name = 'Favorites';
     }
     $("#tabs").tabs('add', '#timeline-' + timelineId, name);
   });
@@ -957,13 +1019,23 @@ $(function() {
     }
     return;
   }
+  
+  console.log('executed!');
+  
   initializeWorkspace();
-});
 
-function writeMessage(msg)
-{
-  document.write(chrome.i18n.getMessage(msg));
-}
+  chrome.tabs.getAllInWindow(null, function(tabs) {
+    //Let's make it fullscreen if we're running it in an exclusive window.
+    if(tabs.length == 1 && tabs[0].url == chrome.extension.getURL('popup.html')) {
+      var resizeWindowFunc = function() {
+        var timelineHeight = window.innerHeight - 79;
+        $('.timeline').css('maxHeight', timelineHeight + 'px');
+      }
+      resizeWindowFunc();
+      $(window).resize(resizeWindowFunc);
+    }
+  });
+});
 </script>
 </head>
 <body>
@@ -993,15 +1065,15 @@ function writeMessage(msg)
   </div>
   <div id="compose_tweet" onclick="Composer.showComposeArea()">
     <img class="left" src="img/arrow_down.gif"/>
-    <script>writeMessage("composeTweet");</script>
+    Compose Tweet
     <img class="right" src="img/arrow_down.gif"/>
   </div>
 
   <span class="header_link_left">
-    <a href="javascript:signout()"><script>writeMessage("logout");</script></a> |
-    <a href="#" onclick="openTab(chrome.extension.getURL('options.html'))"><script>writeMessage("options");</script></a>
+    <a href="javascript:signout()">Log out</a> |
+    <a href="#" onclick="openTab(chrome.extension.getURL('options.html'))">Options</a>
   </span>
-  <a class="header_link_right" href="javascript:Renderer.markAllAsRead();"><script>writeMessage("allRead");</script></a>
+  <a class="header_link_right" href="javascript:Renderer.markAllAsRead();">Mark all as read</a>
   <img src="img/loading.gif" id="loading" style="display: none;"/>
   <div style="clear: both;"></div>
 
@@ -1019,7 +1091,7 @@ function writeMessage(msg)
   <input type="text" name="pin"><br>
   <input type="button" onclick="OAuth.registerPin();" value="Authorize!">
   <br><br>
-  <a href="javascript:OAuth.requestNewToken();"><script>writeMessage("newToken");</script></a>
+  <a href="javascript:OAuth.requestNewToken();">Request another token</a>
 </div>
 <div id="error_pin" style="display: none;">
 </div>
