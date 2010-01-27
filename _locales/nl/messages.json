@@ -1,24 +1,24 @@
 {
 	"composeTweet": {
-		"message": "Compose tweet",
+		"message": "Tweet samenstellen",
 		"description": "Text for composing new tweet"
 	},
 	"logout": {
-		"message": "Log out",
+		"message": "Uitloggen",
 		"description": "The text for the logout link"
 	},
 	"options": {
-		"message": "Options",
+		"message": "Opties",
 		"description": "Options link"
 	},
 	"allRead": {
-		"message": "Mark all as read"
+		"message": "Alles als gelezen markeren"
 	},
 	"newToken": {
-		"message": "Request another token"
+		"message": "Een nieuwe token aanvragen"
 	},
 	"shortenerIdleString": {
-		"message": "Type a URL to make it shorter, or, click right here \u2192"
+		"message": "Type een URL om het korter te maken of klik rechts hier \u2192"
 	},
 	"timelineHome": {
 		"message": "Home",
@@ -41,10 +41,10 @@
 		}
 	},
 	"justNow": {
-		"message": "just now"
+		"message": "kort geleden"
 	},
 	"minuteAgo": {
-		"message": "less than 1 minute ago"
+		"message": "minder dan een minuut geleden"
 	},
 	"minutes": {
 		"message": "$minutes$ minute$s$ ago",

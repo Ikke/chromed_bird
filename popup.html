@@ -81,8 +81,7 @@ var OAuth = {
         initializeWorkspace();
       } else {
         var errMsg = twitterBackend.oauthLib.error;
-        $("#error_pin").show().html('The following error occurred trying to authenticate: ' + errMsg + '. ' +
-          'Please, <a href="javascript:OAuth.requestNewToken();">click here to restart the authentication process</a>');
+        $("#error_pin").show().html(chrome.i18n.getMessage('oAuthError', [errMsg]));
       }
     });
   },
@@ -442,12 +441,12 @@ var Renderer = {
 
     var diff = (nowTimestamp - inputTimestamp) / 1000;
     if(diff < 15) {
-      return "just now";
+      return chrome.i18n.getMessage('justNow');
     } else if(diff < 60) {
-      return "less than 1 minute ago";
+      return chrome.i18n.getMessage('minuteAgo');
     } else if(diff < 60 * 60) {
       var minutes = parseInt(diff / 60);
-      return minutes + " minute" + ((minutes > 1) ? "s" : "") + " ago";
+      return chrome.i18n.getMessage('minutes', [minutes, ((minutes > 1) ? "s" : "")]);
     } else if(diff < 60 * 60 * 24) {
       var hours = parseInt(diff / (60 * 60));
       return "about " + hours + " hour" + ((hours > 1) ? "s" : "") + " ago";
