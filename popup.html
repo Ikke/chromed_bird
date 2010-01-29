@@ -38,6 +38,7 @@ if(shortener_acct) {
   shortener_login = OptionsBackend.get('shortener_login');
   shortener_key = OptionsBackend.get('shortener_key');
 }
+var reply_all = OptionsBackend.get('reply_all');
 var shortener = new Shortener(OptionsBackend.get('url_shortener'),
   shortener_acct, shortener_login, shortener_key);
 
@@ -81,8 +82,7 @@ var OAuth = {
         initializeWorkspace();
       } else {
         var errMsg = twitterBackend.oauthLib.error;
-        $("#error_pin").show().html('The following error occurred trying to authenticate: ' + errMsg + '. ' +
-          'Please, <a href="javascript:OAuth.requestNewToken();">click here to restart the authentication process</a>');
+        $("#error_pin").show().html(chrome.i18n.getMessage('oAuthError', [errMsg]));
       }
     });
   },
@@ -227,13 +227,14 @@ var Composer = {
     }, this.favoriteId);
   },
 
-  addUser: function (user) {
+  addUser: function (user, replies) {
     var textArea = $("#compose_tweet_area textarea");
     var currentVal = textArea.val();
+    var replies =  replies || [];
     if(currentVal.length > 0 && currentVal[currentVal.length - 1] != ' ') {
       currentVal += ' ';
     }
-    currentVal += '@' + user + ' ';
+    currentVal += '@' + user + ' ' + replies.join('');
     textArea.val(currentVal);
   },
 
@@ -242,16 +243,26 @@ var Composer = {
 
     var textArea = $("#compose_tweet_area textarea");
     var currentVal = textArea.val();
-    var user = $(".user", node).attr('screen_name');
+    var user = $(".user", node).attr('screen_name');    
+    var replies = [];
+    var ownName = tweetManager.twitterBackend.username();
+    if (reply_all) {
+      $(".text a", node).each(function(){
+        var t = $(this).text();
+        if (t !== ownName && /^[A-Z0-9_-]{1,15}$/ig.test(t)) {
+          replies.push('@'+t+' ');
+        }
+      });
+    }
 
     if(Composer.replyId && currentVal.indexOf(Composer.replyUser) != -1) {
-      this.addUser(user);
+      this.addUser(user, replies);
       return;
     } else {
       if(tweetManager.currentTimeline == "dms") {
         textArea.val("d " + user + " ");
       } else {
-        this.addUser(user);
+        this.addUser(user, replies);
       }
       tweetManager.composerData.replyId = Composer.replyId = $(node).attr('tweetid');
       tweetManager.composerData.replyUser = Composer.replyUser = user;
@@ -465,12 +476,12 @@ var Renderer = {
 
     var diff = (nowTimestamp - inputTimestamp) / 1000;
     if(diff < 15) {
-      return "just now";
+      return chrome.i18n.getMessage('justNow');
     } else if(diff < 60) {
-      return "less than 1 minute ago";
+      return chrome.i18n.getMessage('minuteAgo');
     } else if(diff < 60 * 60) {
       var minutes = parseInt(diff / 60);
-      return minutes + " minute" + ((minutes > 1) ? "s" : "") + " ago";
+      return chrome.i18n.getMessage('minutes', [minutes, ((minutes > 1) ? "s" : "")]);
     } else if(diff < 60 * 60 * 24) {
       var hours = parseInt(diff / (60 * 60));
       return "about " + hours + " hour" + ((hours > 1) ? "s" : "") + " ago";
@@ -495,17 +506,17 @@ var Renderer = {
       {
         //create links
         'expression': /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig,
-        'replacement': "<a href='#' onclick=\"openTab('$1')\">$1</a>"
+        'replacement': "<a href='javascript:' onclick=\"javascript:openTab('$1')\">$1</a>"
       },
       {
         //create hash search links
-        'expression': /(#(\w*))((?=.*?<a)|(?!.*?<\/a>))/ig,
-        'replacement': "<a href='#' onclick=\"openTab('" + TwitterLib.URLS.SEARCH + "%23$2')\">$1</a>"
+        'expression': /(#(\w*))((?=([^<])*?<a)|(?!.*?<\/a>))/ig,
+        'replacement': "<a href='javascript:' onclick=\"javascript:openTab('" + TwitterLib.URLS.SEARCH + "%23$2')\">$1</a>"
       },
       {
         //create users links
-        'expression': /(@(\w*))((?=.*?<a)|(?!.*?<\/a>))/ig,
-        'replacement': "@<a href='#' onclick=\"openTab('" + TwitterLib.URLS.BASE + "$2')\">$2</a>"
+        'expression': /(@(\w*))((?=([^<])*?<a)|(?!.*?<\/a>))/ig,
+        'replacement': "@<a href='javascript:' onclick=\"javascript:openTab('" + TwitterLib.URLS.BASE + "$2')\">$2</a>"
       },
       {
         //line breaks
@@ -585,7 +596,7 @@ var Renderer = {
       str += 'retweeted by me ';
     }
     if(from) {
-      str += 'from ' + from;
+      str += '<span class="from_app">from ' + from + '</span>';
     }
     str += '</div></div>';
 
@@ -807,6 +818,10 @@ function openTab(tabUrl) {
 var loadingNewTweets = false;
 
 function onTimelineRetrieved(tweets, timelineId) {
+  if(!window) {
+    //Sanity check, popup might be closed.
+    return;
+  }
   $("#loading").hide();
   if(tweets) {
     Paginator.needsMore = false;
@@ -839,8 +854,10 @@ function signout() {
 }
 
 function newTweetsAvailable(count, unreadCount, timelineId) {
-  if(!window)
+  if(!window) {
+    //Sanity check, popup might be closed.
     return;
+  }
   var currentTimeline = tweetManager.currentTimeline;
   if(timelineId != currentTimeline) {
     if(unreadCount == 0) {
@@ -1002,6 +1019,9 @@ $(function() {
     }
     return;
   }
+  
+  console.log('executed!');
+  
   initializeWorkspace();
 
   chrome.tabs.getAllInWindow(null, function(tabs) {

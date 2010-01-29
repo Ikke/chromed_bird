@@ -30,6 +30,7 @@ OptionsBackend = {
     base_signing_url: 'http://twitter.com/',
     base_authorize_url: 'https://twitter.com/oauth/authorize?oauth_token=',
 
+    use_desktop_notifications: false,
     home_on_page: false,
     home_icon: true,
     mentions_on_page: true,
@@ -46,6 +47,8 @@ OptionsBackend = {
     dms_visible: true,
     favorites_visible: true,
     lists_visible: true,
+
+    reply_all: false,
 
     lists_count: 1,
 
@@ -102,6 +105,7 @@ function TweetsTimeline(timelineId, manager, recheckTime) {
   this.usingPages = false;
   this.timelineId = timelineId;
   this.listId = null;
+  this.timelineStopped = false;
 
   switch(timelineId) {
     case 'home':
@@ -129,6 +133,11 @@ TweetsTimeline.prototype = {
     this.timelinePath = path;
   },
 
+  killTimeline: function() {
+    this.timelineStopped = true;
+    this.stopTimer();
+  },
+
   stopTimer: function() {
     if(this.timerId) {
       clearTimeout(this.timerId);
@@ -137,6 +146,9 @@ TweetsTimeline.prototype = {
   },
 
   onFetchNew: function(success, tweets, status, context) {
+    if(this.timelineStopped) {
+      return;
+    }
     var _this = this;
     if(!success) {
       this.setError(status);
@@ -206,6 +218,9 @@ TweetsTimeline.prototype = {
   },
 
   onFetch: function(success, tweets, status, context) {
+    if(this.timelineStopped) {
+      return;
+    }
     if(!success) {
       this.setError(status);
       this.currentCallback(null);
@@ -229,8 +244,17 @@ TweetsTimeline.prototype = {
         this.tweetsCache.push(tweets[i]);
       }
     }
-    this.currentCallback(this.tweetsCache, this.timelineId);
+
+    // Let's clean this.currentCallback before calling it as
+    // there might be unexpected errors and this should not block
+    // the extension.
+    var callback = this.currentCallback;
     this.currentCallback = null;
+    try {
+      callback(this.tweetsCache, this.timelineId);
+    } catch(e) {
+      /* ignoring exception, popup might be closed */
+    }
 
     if(this.firstRun) {
       this.firstRun = false;
@@ -399,7 +423,6 @@ function TweetManager() {
   this.iconImg = null;
   this.listsCache = null;
   this.listsTabCount = OptionsBackend.get('lists_count');
-  this.loadIcon();
 
   var timelineNames = ["home", "mentions", "dms", "favorites", "lists"];
   for(var i = 0; i < timelineNames.length; ++i) {
@@ -427,6 +450,8 @@ function TweetManager() {
   this.warningMessage = null;
   this.autoClearWarning = false;
   this.tooManyHitsCount = 0;
+
+  this.initIconAndAlerts();
 
   var _this = this;
   this.twitterBackend = new TwitterLib(OptionsBackend.get('request_timeout'),
@@ -545,12 +570,13 @@ TweetManager.prototype = {
     localStorage['timeline_order'] = JSON.stringify(sortedTimelinesArray);
   },
 
-  loadIcon: function() {
+  initIconAndAlerts: function() {
     var $icon = $('<img>').attr('src', 'img/icon19.png');
-    $icon.load(function() {
-      chrome.browserAction.setIcon({imageData: IconCreator.paintIcon(this, OptionsBackend.get('idle_color'))});
-    });
     this.iconImg = $icon[0];
+    var _this = this;
+    $icon.load(function() {
+      _this.updateAlert();
+    });
   },
 
   unique: function(srcList) {
@@ -598,8 +624,25 @@ TweetManager.prototype = {
       chrome.browserAction.setBadgeText({text: '' + totalUnreadNewCount});
     }
     if(unreadNewTweets.length > 0) {
-      this.injectTweets = unreadNewTweets;
+      this.showTweetsNotifications(unreadNewTweets);
+    }
+  },
 
+  showTweetsNotifications: function(tweetsToNotify, forceOnPage) {
+    this.injectTweets = tweetsToNotify;
+
+    if(!forceOnPage && OptionsBackend.get('use_desktop_notifications')) {
+      try {
+        var notificationCenter = window.notifications || window.webkitNotifications;
+        var notification = notificationCenter.createHTMLNotification(
+          chrome.extension.getURL('tweets_notifier.html')
+        );
+        notification.show();
+      } catch(e) {
+        // Fallback to 'on page' notifications
+        this.showTweetsNotifications(tweetsToNotify, true);
+      }
+    } else {
       var injectHelper = function(action, file, allFrames, callback) {
         var method;
         if(action == 'script') {
@@ -832,7 +875,7 @@ TweetManager.prototype = {
 
   stopAll: function() {
     this.eachTimeline(function(timeline) {
-      timeline.stopTimer();
+      timeline.killTimeline();
       delete timeline;
     });
   },
@@ -969,7 +1012,15 @@ function initializeExtension() {
   var selectedResponse = null;
   var biggestArea = -1;
   chrome.extension.onRequest.addListener(function(request, sender, sendResponse) {
-    if(request.cb_requesting_tweets) {
+    if(request.cb_requesting_tweets_immediate) {
+      sendResponse({
+        tweets: TweetManager.instance.injectTweets,
+        nameAttribute: OptionsBackend.get('name_attribute'),
+        extensionId: location.host,
+        fadeTimeout: OptionsBackend.get('notification_fade_timeout')
+      });
+      TweetManager.instance.injectTweets = null;
+    } else if(request.cb_requesting_tweets) {
       if(waitingFirstRequest) {
         waitingFirstRequest = false;
         setTimeout(function() {

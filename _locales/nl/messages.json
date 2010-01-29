@@ -1,0 +1,60 @@
+{
+	"composeTweet": {
+		"message": "Tweet samenstellen",
+		"description": "Text for composing new tweet"
+	},
+	"logout": {
+		"message": "Uitloggen",
+		"description": "The text for the logout link"
+	},
+	"options": {
+		"message": "Opties",
+		"description": "Options link"
+	},
+	"allRead": {
+		"message": "Alles als gelezen markeren"
+	},
+	"newToken": {
+		"message": "Een nieuwe token aanvragen"
+	},
+	"shortenerIdleString": {
+		"message": "Type een URL om het korter te maken of klik rechts hier \u2192"
+	},
+	"timelineHome": {
+		"message": "Home",
+		"description": "The home timeline tab"
+	},
+	"timelineDM": {
+		"message": "DM",
+		"description": "The direct message timeline tab"
+	},
+	"timelineFavorites": {
+		"message": "Favorites",
+		"description": "The home timeline tab"
+	},
+	"oAuthError": {
+		"message": "The following error occurred trying to authenticate: $errorMessage$. Please, <a href=\"javascript:OAuth.requestNewToken();\">click here to restart the authentication process</a>",
+		"placeholders": {
+			"errorMessage":{
+				"content": "$1"			
+			}
+		}
+	},
+	"justNow": {
+		"message": "kort geleden"
+	},
+	"minuteAgo": {
+		"message": "minder dan een minuut geleden"
+	},
+	"minutes": {
+		"message": "$minutes$ minute$s$ ago",
+		"placeholders": {
+			"minutes":{
+				"content": "$1"
+			},
+			"s": {
+				"content": "$2"
+			}
+		}
+	}
+}
