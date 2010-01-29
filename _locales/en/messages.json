@@ -22,14 +22,78 @@
 	},
 	"timelineHome": {
 		"message": "Home",
-		"description": "The home timeline tab"
+		"description": "The home time line tab"
 	},
 	"timelineDM": {
 		"message": "DM",
-		"description": "The direct message timeline tab"
+		"description": "The direct message time line tab"
 	},
 	"timelineFavorites": {
 		"message": "Favorites",
-		"description": "The home timeline tab"
+		"description": "The home time line tab"
+	},
+	"oAuthError": {
+		"message": "The following error occurred trying to authenticate: $errorMessage$. Please, <a href=\"javascript:OAuth.requestNewToken();\">click here to restart the authentication process</a>",
+		"placeholders": {
+			"errorMessage":{
+				"content": "$1"			
+			}
+		}
+	},
+	"justNow": {
+		"message": "just now"
+	},
+	"minuteAgo": {
+		"message": "a minute ago"
+	},
+	"minutes": {
+		"message": "$nr_of_minutes$ $minutes$ ago",
+		"placeholders": {
+			"nr_of_minutes":{
+				"content": "$1"
+			},
+			"minutes": {
+				"content": "$2",
+				"example": "minute or minutes (singular / plural)"
+			}
+		}
+	},
+	"minute_singular": {
+		"message": "minute"
+	},
+	"minute_plural": {
+		"message": "minutes"
+	},
+	"timeAgo": {
+		"message": "about $time$ $time_string$ ago",
+		"placeholders": {
+			"time": {
+				"content": "$1"
+			},
+			"time_string": {
+				"content": "$2"
+			}
+		}
+	},
+	"hour_singular": {
+		"message": "hour"
+	},
+	"hour_plural": {
+		"message": "hours"
+	},
+	"day_singular": {
+		"message": "day"
+	},
+	"day_plurar": {
+		"message": "days"
+	},
+	"month_singular": {
+		"message": "month"
+	},
+	"month_plural": {
+		"message": "months"
+	},
+	"yearsAgo": {
+		"message": "yearsAgo"
 	}
 }
